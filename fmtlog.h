@@ -281,6 +281,33 @@ public:
       return __rdtsc();
 #elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
       return __builtin_ia32_rdtsc();
+#elif defined(__ARM_ARCH) && (__ARM_ARCH >= 6) && defined(HAVE_INT32)
+      // 参考: https://github.com/rurban/smhasher/blob/master/Platform.h
+      // V6 is the earliest arch that has a standard cyclecount (some say V7)
+      uint32_t pmccntr;
+      uint32_t pmuseren;
+      uint32_t pmcntenset;
+      // Read the user mode perf monitor counter access permissions.
+      asm volatile("mrc p15, 0, %0, c9, c14, 0" : "=r"(pmuseren));
+      if (pmuseren & 1) {  // Allows reading perfmon counters for user mode code.
+          asm volatile("mrc p15, 0, %0, c9, c12, 1" : "=r"(pmcntenset));
+          if (pmcntenset & 0x80000000ul) {  // Is it counting?
+              asm volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(pmccntr));
+              // The counter is set up to count every 64th cycle
+              return static_cast<int64_t>(pmccntr) * 64;  // Should optimize to << 6
+          }
+      }
+      return rdsysns();
+#elif defined(__aarch64__) && defined(HAVE_INT64)
+      uint64_t pmccntr;
+      uint64_t pmuseren = 1UL;
+      // Read the user mode perf monitor counter access permissions.
+      //asm volatile("mrs cntv_ctl_el0,  %0" : "=r" (pmuseren));
+      if (pmuseren & 1) {  // Allows reading perfmon counters for user mode code.
+          asm volatile("mrs %0, cntvct_el0" : "=r" (pmccntr));
+          return (int64_t)(pmccntr) * 64;  // Should optimize to << 6
+      }
+      return rdsysns();
 #else
       return rdsysns();
 #endif
