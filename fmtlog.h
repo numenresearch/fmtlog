@@ -279,8 +279,6 @@ public:
     static inline int64_t rdtsc() {
 #ifdef _MSC_VER
       return __rdtsc();
-#elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
-      return __builtin_ia32_rdtsc();
 #elif defined(__ARM_ARCH) && (__ARM_ARCH >= 6) && defined(HAVE_INT32)
       // 参考: https://github.com/rurban/smhasher/blob/master/Platform.h
       // V6 is the earliest arch that has a standard cyclecount (some say V7)
@@ -308,6 +306,8 @@ public:
           return (int64_t)(pmccntr) * 64;  // Should optimize to << 6
       }
       return rdsysns();
+#elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
+      return __builtin_ia32_rdtsc();
 #else
       return rdsysns();
 #endif
